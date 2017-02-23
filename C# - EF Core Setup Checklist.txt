@@ -1,0 +1,72 @@
+C# EF Core Setup Checklist
+
+From a fresh yo candyman
+
+- Create appsettings.json
+	- MAKE SURE TO UPDATE THE FIELDS
+
+{
+	"DbInfo" : {
+		"Name": "MySqlConnection",
+		"ConnectionString": "server=localhost;userid=root;password=root;port=8889;database=mydb;SslMode=None"
+	}
+}
+
+- Startup.cs
+1. add dependencies
+
+using Microsoft.AspNetCore.Hosting;
+using MySQL.Data.EntityFrameworkCore.Extensions;
+using {{YOURPROJECT}}.Models;
+
+2. add functions
+
+public IConfiguration Configuration { get; private set; }
+
+public Startup(IHostingEnvironment env){
+	var builder - new ConfigurationBuilder().SetBasePath(env.ContentRootPath).AddJsonFile("appsettings.json", optional: true, reloadOnChange: true).AddEnvironmentalVariables();
+	Configuration = builder.Build();
+}
+
+3. Inside ConfigureServices, add
+	services.AddDbContext<DemoContext>(options =>options.UseMySQL(Configuration["DbInfo:ConnectionString"]));
+
+4. Create /Models/DbContext.cs
+
+using Microsoft.EntityFrameworkCore;
+using MySQL.Data.EntityFrameworkCore.Extensions;
+namespace {{YOURPROJECT}}.Models{
+	public class DemoContext : DbContext{
+		public DemoContext(DbContextOptions<DemoContext> options) : base(options)
+		{
+		}
+		// For each model you need to CRUD
+		public DbSet<MODELNAME> ModelNames {get;set;}
+		// e.g. public DbSet<Car> Cars {get;set;}
+	}
+}
+
+5. Inject DemoContext into your Controllers
+
+In your controller:
+
+private DemoContext _context;
+public HomeController(DemoContext context){
+	_context = context;
+} 
+
+-----------------------------------------------------------------
+
+Example Implementation:
+
+In your route:
+	List<MODELNAME> variableName = _context.MODELNAME.ToList();
+	return View(variableName);
+
+In your CSHTML:
+	@model List<PROJECTNAME.Models.MODELNAME>
+	@{
+		foreach(var THING in @Model){
+			//Do the thing
+		}
+	}
