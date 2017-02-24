@@ -1,8 +1,12 @@
 C# EF Core Setup Checklist
 
-From a fresh yo candyman
+From a fresh yo candyman:
 
-- Create appsettings.json
+0.	Insert dependencies into project.json
+
+"MySQL.Data.EntityFrameworkCore": "7.0.5-ir21"
+
+1. 	reate appsettings.json
 	- MAKE SURE TO UPDATE THE FIELDS
 
 {
@@ -12,26 +16,26 @@ From a fresh yo candyman
 	}
 }
 
-- Startup.cs
-1. add dependencies
+2.	Edit Startup.cs
+A. add dependencies
 
 using Microsoft.AspNetCore.Hosting;
 using MySQL.Data.EntityFrameworkCore.Extensions;
 using {{YOURPROJECT}}.Models;
 
-2. add functions
+B. add functions
 
 public IConfiguration Configuration { get; private set; }
 
 public Startup(IHostingEnvironment env){
-	var builder - new ConfigurationBuilder().SetBasePath(env.ContentRootPath).AddJsonFile("appsettings.json", optional: true, reloadOnChange: true).AddEnvironmentalVariables();
+	var builder = new ConfigurationBuilder().SetBasePath(env.ContentRootPath).AddJsonFile("appsettings.json", optional: true, reloadOnChange: true).AddEnvironmentalVariables();
 	Configuration = builder.Build();
 }
 
-3. Inside ConfigureServices, add
+C. Inside ConfigureServices, add
 	services.AddDbContext<DemoContext>(options =>options.UseMySQL(Configuration["DbInfo:ConnectionString"]));
 
-4. Create /Models/DbContext.cs
+3.	Create /Models/DbContext.cs
 
 using Microsoft.EntityFrameworkCore;
 using MySQL.Data.EntityFrameworkCore.Extensions;
@@ -46,7 +50,7 @@ namespace {{YOURPROJECT}}.Models{
 	}
 }
 
-5. Inject DemoContext into your Controllers
+4.	Inject DemoContext into your Controllers
 
 In your controller:
 
