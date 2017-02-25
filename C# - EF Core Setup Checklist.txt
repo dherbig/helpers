@@ -21,6 +21,7 @@ A. add dependencies
 
 using Microsoft.AspNetCore.Hosting;
 using MySQL.Data.EntityFrameworkCore.Extensions;
+using Microsoft.Extensions.Configuration;
 using {{YOURPROJECT}}.Models;
 
 B. add functions
