@@ -1,0 +1,161 @@
+Setting up EF Core's "Identity" User Login System:
+
+A:	Add dependencies to Project.JSON
+
+"Microsoft.AspNetCore.Identity.EntityFrameworkCore": "1.0.0-*"
+
+B: 	Extend the IdentityUser model to your liking
+
+	Identity relies on IdentityUser objects for it's validation, etc.  If you want any fields other than ID, Email, Password, and Username, you need to make a new model that extends the IdentityUser Class for it to be compatable with Identity's methods.
+
+Example - User with a list of messages:
+
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using System.Collections.Generic;
+namespace YourNamespace.Models
+{
+public class User : IdentityUser
+{
+	public List<Message> Messages { get; set; }
+	
+	public User()
+	{
+		Messages = new List<Message>();
+	}
+}
+}
+
+Note: IdentityUser Ids are STRINGS, not INTs, as they are hex values.
+
+C:	Modify your Context class to extend IdentityDbContext
+
+	This allows your context to use Identity methods, etc.
+
+Example (Only showing changes):
+
+
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+//Other Code
+
+public class YourContext : IdentityDbContext<User>{}
+	//Where "User" is the EXTENDED model.
+
+D:	Modify Startup.cs to expect and use Identity.
+
+Example - Startup.cs (Entire file - May contain extra usings):
+
+using YourNamespace.Models;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Logging;
+namespace YourNamespace
+{
+    public class Startup
+    {
+        public void ConfigureServices( IServiceCollection services )
+        {
+            //Other code
+            services.AddIdentity<User, IdentityRole>()
+                .AddEntityFrameworkStores<YourContext>()
+                .AddDefaultTokenProviders();
+            services.AddMvc();
+        }
+        public void Configure(IApplicationBuilder app)
+        {
+            //Other Middleware
+            app.UseIdentity();
+            app.UseMvc();
+        }
+    }
+}
+
+E.	Set up the UserManager and SignInManager instances
+	
+	UserManager and SignInManager track log in states asynchronously, so you don't need to worry about writing the methods yourself. UserManager fetches, adds, updates users, and SignInManager manages and checks log in states.  First, we need to inject them into our controllers.
+
+Example - YourController.cs (All the code):
+
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using YourNamespace.Models;
+namespace YourNamespace.Controllers
+{
+    public class YourController : Controller
+    {
+        private YourContext _context;
+        private readonly UserManager<User> _userManager;
+        private readonly SignInManager<User> _signInManager;
+        public YourController(
+            YourContext context,
+            UserManager<User> userManager,
+            SignInManager<User> signInManager)
+        {
+            _context = context;
+            _userManager = userManager;
+            _signInManager = signInManager;
+        }
+    }
+}
+
+-----------------------------------------------------------------
+
+Using Identity:
+
+Registrering a new user:
+
+Example - YourController.cs (All the code):
+
+using System.Threading.Tasks;
+//Other code
+public async Task<IactionResult> Method(RegisterViewModel model)
+{
+    if(ModelState.IsValid)
+    {
+        //Create a new User object, without adding a Password
+        User NewUser = new User { UserName = model.UserName, Email = model.Email };
+        //CreateAsync will attempt to create the User in the database, simultaneously hashing the password
+        IdentityResult result = await _userManager.CreateAsync(NewUser, model.Password);
+        //If the User was added to the database successfully
+        if(result.Succeeded)
+        {
+            //Sign In the newly created User
+            //We're using the SignInManager, not the UserManager!
+            await _signInManager.SignInAsync(NewUser, isPersistent: false);
+        }
+        //If the creation failed, add the errors to the View Model
+        foreach( var error in result.Errors )
+        {
+            ModelState.AddModelError(string.Empty, error.Description);
+        }
+    }
+    return View(model);
+}
+
+
+UserManager Methods
+
+Name				Use								Parameters
+FindByEmailAsync()	Fetches a user based on their Email		A string containing an email
+FindByIdAsync()		Fetches a user based on their Id			A string containing an Id
+FindByNameAsync()	Fetches a user based on their UserName		A string containing a username
+UpdateAsync()		Update a user in our database			A User object containing the changes we wish to save
+
+SignInManagerMethods
+
+Name				Use										Parameters
+SignInAsync()		Logs a user in when we have the whole user object		UserObject
+PasswordSignInAsync()	Logs a user in with UName & Pass					UName, Pass
+	This method returns a IdentityResult object, with a .Succeeded boolean
+SignOutAsync()		Logs out.									None
+
+
+A logged in user is stored in HttpContext.User, which when called gives us the ClaimsPrinciple of the current logged in user.
+ClaimsPrinciple stores the ID and security privledges of the user. 
+Pass HttpContext.User to userManager's .GetUserAsync to get the entire user object.  Automate this with:
+
+private Task<User> GetCurrentUserAsync()
+{
+    return _userManager.GetUserAsync(HttpContext.User);
+}
