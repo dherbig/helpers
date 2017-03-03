@@ -141,6 +141,7 @@ FindByEmailAsync()	Fetches a user based on their Email		A string containing an e
 FindByIdAsync()		Fetches a user based on their Id			A string containing an Id
 FindByNameAsync()	Fetches a user based on their UserName		A string containing a username
 UpdateAsync()		Update a user in our database			A User object containing the changes we wish to save
+AddToRoleAsync()		Adds a role to a user (See Roles, below)	The user, "The Role"
 
 SignInManagerMethods
 
@@ -159,3 +160,73 @@ private Task<User> GetCurrentUserAsync()
 {
     return _userManager.GetUserAsync(HttpContext.User);
 }
+
+
+-----------------------------------------------------------------
+
+Using Identity's Authorization tools:
+
+	To prevent users from viewing pages they aren't allowed to, we use the [Authorize] tag.  We can make the system check to see if the user is authorized to view a page, we simply add the [Authorize] tag above it's route.  We can also place the tag above an entire controller to require it for all routes.  If we want to allow a user access to a page with a blanket [Authorize] statement, we add the tag [AllowAnonymous] above it's route.
+	When an unauthorized user tries to access a protected page, Identity will redirect them to "/Account/Login", because it assumes that you you are using the "/Controller/Method" naming scheme.  If you want to redirect people to a different route, you must set up cookie authentication.
+
+A.	Add dependencies to project.json
+
+"Microsoft.AspNetCore.Authentication.Cookies": "1.0.0"
+
+B.	Confgure the redirect routes in Startup.cs
+
+Example - Startup.cs (All extra code to be added. See comments!):
+
+using Microsoft.AspNetCore.Http;
+//Other code
+public void Configure(IApplicationBuilder app)
+{
+    //Other middleware
+    app.UseCookieAuthentication( new CookieAuthenticationOptions()
+    {
+	//Tells the app to use cookies
+        AuthenticationScheme = "Cookie",
+	//Unauthenticated users are redirected to here, e.g. "/loginRoute"
+        LoginPath = new PathString("/loginRoute"),
+	//If a user tries to go somewhere they shouldn't have access to, e.g. admin pages, they are sent here
+        AccessDeniedPath = new PathString("/notAllowedRoute"),
+	//A.A. states if we should authenticate during EVERY Http request
+        AutomaticAuthenticate = true,
+	//A.C. tells the app to automatically redirect if authorization fails
+        AutomaticChallenge = true
+    });
+    app.useMvc();
+}
+
+
+------------------------------------------------------------------
+Using Roles:
+	Sometimes you have different levels of accounts (admin vs scrub).  You can differentitate between the groups using "Roles" and Authorization.  
+
+A.	Add the roles to Startup.cs
+
+Example - Startup.cs (Most the code, mostly edits.  Check comments!):
+
+public void Configure(IApplicationBuilder app)
+{
+    //Add this line!!
+    InitializeRoles(app.ApplicationServices).Wait();
+    app.UseMvc();
+}
+private async Task InitializeRoles(IServiceProvider serviceProvider)
+{
+    // Array of Roles to create
+    string[] RolesToCreate = new string[] {"Level1", "Level2", "Level3"};
+    RoleManager<IdentityRole> roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    foreach( string role in RolesToCreate )
+    {
+        // If a Role doesn't already exist, create it
+        if( !await roleManager.RoleExistsAsync(role) )
+        {
+            await roleManager.CreateAsync( new IdentityRole(role) );
+        }
+    }
+}
+
+B.	Assigning users roles
+	You assign new users a role by using the UserManager's ".AddToRoleAsync(userObject, "RoleString")" method, at any place you can use the UserManager. Once users are assigned roles, you can then manage who has access to routes by modifying the [Authorize] tag to included the roles allowed.  For example, a route that only "admin"s can access would be prefaced by [Authorize(Roles = "admin")]. Routes availible to "admin" and "pickle" roles would be [Authorize(Roles = "admin, pickle")] and so on.  Routes accessible to any role remain [Authorize].
